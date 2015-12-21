@@ -2,17 +2,14 @@
 using System.IO;
 using System.Data;
 using System.Collections.Generic;
-using System.Linq;
-using NPOI;
-using NPOI.XSSF;
-using NPOI.XSSF.UserModel;
-using NPOI.SS.UserModel;
+using OfficeOpenXml;
+
 
 namespace Excel
 {
     public class ExcelReader
     {
-        private static void Initialize(string filePath, out IWorkbook workbook)
+        private static void Initialize(string filePath, out ExcelPackage package, out ExcelWorkbook workbook)
         {
             if (!File.Exists(filePath))
             {
@@ -22,50 +19,59 @@ namespace Excel
             {
                 //return null;
             }
-            using (FileStream fs = File.OpenRead(filePath))
-            {
-                workbook = WorkbookFactory.Create(fs);
-            }
+            package = new ExcelPackage(new FileInfo(filePath));
+            workbook = package.Workbook;
         }
 
 
         public static DataSet getAllSheets(string filePath)
         {
-            IWorkbook workbook;
-            Initialize(filePath, out workbook);
-            int sheetsCount = workbook.NumberOfSheets;
+            ExcelPackage package;
+            ExcelWorkbook workbook;
+            Initialize(filePath, out package, out workbook);
+            int sheetsCount = package.Workbook.Worksheets.Count;
             DataSet sheetsSet = new DataSet();
-            Console.WriteLine("Sheet number: " + sheetsCount);
-            try
+            if (sheetsCount > 0)
             {
-                for (int i  = 0; i < sheetsCount; i++)
+                try
                 {
-                    DataTable sheetData = getOneSheet(workbook, i);
-                    sheetsSet.Tables.Add(sheetData);
+                    for (int i = 1; i <= sheetsCount; i++)
+                    {
+                        if (workbook.Worksheets[i].Dimension == null)       // empty sheet is not equal to null, but its dimension is.
+                        {
+                            //Console.WriteLine("sheet {0} is empty.", i);
+                        }
+                        else
+                        {
+                            DataTable sheetData = getSpecifiedSheet(workbook, i);
+                            sheetsSet.Tables.Add(sheetData);
+                        }
+                    }
                 }
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.ToString());
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.ToString());
+                }
             }
             return sheetsSet;
         }
 
-        public static DataTable getOneSheet(string filePath, int sheetIndex)
+        public static DataTable getSpecifiedSheet(string filePath, int sheetIndex)
         {
             if(!File.Exists(filePath))
             {
                 return null;
             }
 
-            IWorkbook workbook;
-            Initialize(filePath, out workbook);
+            ExcelPackage package;
+            ExcelWorkbook workbook;
+            Initialize(filePath, out package, out workbook);
 
             DataTable sheetData = new DataTable();
 
             try
             {
-                getOneSheet(workbook, sheetIndex);
+                getSpecifiedSheet(workbook, sheetIndex);
             }
             catch (Exception e)
             {
@@ -75,57 +81,56 @@ namespace Excel
             return sheetData;
         }
 
-        private static DataTable getOneSheet(IWorkbook workbook, int sheetIndex)
+        private static DataTable getSpecifiedSheet(ExcelWorkbook workbook, int sheetIndex)
         {
-            DataTable sheetData = new DataTable();
-            ISheet sheet = workbook.GetSheetAt(sheetIndex);
-            int rowCount = sheet.LastRowNum;
-            int columnCount = sheet.GetRow(0).LastCellNum;
-            for (int i = 0; i < rowCount; i++)
-            {
-                if(columnCount < sheet.GetRow(i).LastCellNum)
-                {
-                    columnCount = sheet.GetRow(i).LastCellNum;
-                }
-            }
+            ExcelWorksheet sheet = workbook.Worksheets[sheetIndex];
+            DataTable sheetData = new DataTable(sheet.Name);
+            int rowCount = sheet.Dimension.End.Row;
+            int colCount = sheet.Dimension.End.Column;
 
-            for (int i = 0; i < columnCount; i ++)
+            for (int i = 1; i <= colCount; i ++)
             {
-                object cell = sheet.GetRow(0).GetCell(i);
+                object cell =  sheet.Cells[i, 1].Value;
                 string columnName = cell != null ? cell.ToString() : string.Empty;
                 DataColumn column = new DataColumn();
-                column.ColumnName = columnName;
                 column.DataType = Type.GetType("System.Object");
                 sheetData.Columns.Add(column);
             }
 
             try
             {
-                for (int i = 0; i < rowCount; rowCount ++)
+                for (int i = 1; i <= rowCount; i ++)
                 {
+                    
                     DataRow row = sheetData.NewRow();
-                    for (int j = 0; j < columnCount; j++)
+                    for (int j = 1; j <= colCount; j ++)
                     {
-                        object cellText = sheet.GetRow(i).GetCell(j);
-                        Console.WriteLine(cellText);
-                        double textColor = 0;
-                        string textFormat = "G/通用格式";
-                        double bgColor = 0;
-                        if (cellText == null)
+                        ExcelRange cell = sheet.Cells[i, j];
+
+                        object cellText = cell.Value;
+                        if(cellText == null)
                         {
-                            cellText = String.Empty;
+                            cellText = "--";
                         }
-                        else
+
+                        string textColor = cell.Style.Font.Color.Rgb;
+                        if (string.IsNullOrEmpty(textColor))
                         {
-                            cellText = sheet.GetRow(i).GetCell(j).ToString();
-                            /*
-                            textColor = sheet.GetRow(rowIndex).GetCell(columnIndex).CellStyle.GetFont();
-                            textFormat = 
-                            bgColor = 
-                            */
+                            textColor = "00000000";
                         }
-                        Dictionary<string, object> cell = new Dictionary<string, object> { { "text", cellText }, { "color", textColor}, { "format", textFormat }, { "bgColor", bgColor} };
-                        row[j] = cellText;
+
+                        /*
+                        string bgColor = cell.Style.Fill.BackgroundColor.Rgb;
+                        if (string.IsNullOrEmpty(bgColor))
+                        {
+                            bgColor = "00FEEEFF";
+                        }
+                        */
+
+                        string textFormat = cell.Style.Numberformat.Format;
+                        
+                        Dictionary<string, object> box = new Dictionary<string, object> { { "text", cellText }, { "color", textColor}, { "format", textFormat }};
+                        row[j - 1] = box;
                     }
                     sheetData.Rows.Add(row);
                 }
@@ -134,6 +139,7 @@ namespace Excel
             {
                 Console.WriteLine(e.ToString());
             }
+
             return sheetData;
             
         }

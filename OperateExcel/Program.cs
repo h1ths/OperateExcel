@@ -1,10 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Excel;
 using System.Data;
+using System.IO;
+using Excel;
 
 namespace OperateExcel
 {
@@ -18,15 +15,23 @@ namespace OperateExcel
             for(int i = 0; i < sheets.Tables.Count; i ++)
             {
                 DataTable dt = sheets.Tables[i];
+                Console.WriteLine("sheet {0}, named: {1}", i + 1, dt.TableName);
                 for(int j = 0; j < dt.Rows.Count; j++)
                 {
                     for(int k = 0; k < dt.Columns.Count; k++)
                     {
-                        Console.Write(dt.Rows[i][k] + " ");
+                        Console.Write(((dynamic)dt.Rows[j][k])["text"] + " |");
                     }
-                    Console.WriteLine();
                 }
             }
+            string outfile = @"newxlsx.xlsx";
+            if (File.Exists(outfile))
+            {
+                File.Delete(outfile);
+            }
+            ExcelWriter.ExportDataSet(sheets, outfile);
+            Console.WriteLine();
+            Console.WriteLine("write success!");
             Console.ReadKey();
         }
     }
