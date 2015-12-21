@@ -105,31 +105,20 @@ namespace Excel
                     DataRow row = sheetData.NewRow();
                     for (int j = 1; j <= colCount; j ++)
                     {
+                        string textColor = string.Empty;
                         ExcelRange cell = sheet.Cells[i, j];
-
-                        object cellText = cell.Value;
+                        object cellText = cell.Text;
                         if(cellText == null)
                         {
                             cellText = "--";
                         }
-
-                        string textColor = cell.Style.Font.Color.Rgb;
-                        if (string.IsNullOrEmpty(textColor))
+                        else
                         {
-                            textColor = "00000000";
+                            textColor = cell.Style.Font.Color.Rgb;
+                            cellText = cellText.ToString();
                         }
-
-                        /*
-                        string bgColor = cell.Style.Fill.BackgroundColor.Rgb;
-                        if (string.IsNullOrEmpty(bgColor))
-                        {
-                            bgColor = "00FEEEFF";
-                        }
-                        */
-
                         string textFormat = cell.Style.Numberformat.Format;
-                        
-                        Dictionary<string, object> box = new Dictionary<string, object> { { "text", cellText }, { "color", textColor}, { "format", textFormat }};
+                        Dictionary<string, object> box = new Dictionary<string, object> { { "text", cellText }, { "color", textColor}, { "format", textFormat } };
                         row[j - 1] = box;
                     }
                     sheetData.Rows.Add(row);
